@@ -1,0 +1,115 @@
+package com.ejemplo.gutendex;
+
+import com.ejemplo.gutendex.models.Book;
+import com.ejemplo.gutendex.services.BookService;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
+
+import java.util.List;
+
+@SpringBootApplication
+public class App {
+    public static void main(String[] args) {
+        ApplicationContext context = SpringApplication.run(App.class, args);
+        BookService bookService = context.getBean(BookService.class);
+        
+        List<Book> books = bookService.fetchBooksFromGutendex();
+        bookService.saveBooksToDatabase(books);
+    }
+}
+package com.ejemplo.gutendex.models;
+
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+
+@Entity
+public class Book {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String title;
+    private String author;
+
+    // Getters y setters
+}
+package com.ejemplo.gutendex.services;
+
+import com.ejemplo.gutendex.models.Book;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+import javax.transaction.Transactional;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+public class BookService {
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    public List<Book> fetchBooksFromGutendex() {
+        String url = "https://gutendex.com/books";
+        Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+        List<Map<String, Object>> booksData = (List<Map<String, Object>>) response.get("results");
+
+        return booksData.stream().map(data -> {
+            Book book = new Book();
+            book.setTitle((String) data.get("title"));
+            book.setAuthor((String) ((List<Map<String, Object>>) data.get("authors")).get(0).get("name"));
+            return book;
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void saveBooksToDatabase(List<Book> books) {
+        for (Book book : books) {
+            entityManager.persist(book);
+        }
+    }
+}
+spring.datasource.url=jdbc:mysql://localhost:3306/gutendex_db
+spring.datasource.username=tu_usuario
+spring.datasource.password=tu_contraseña
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.ejemplo</groupId>
+    <artifactId>gutendex-console-app</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+    </dependencies>
+</project>
